@@ -1,0 +1,115 @@
+plugins {
+    id 'java'
+    id 'io.quarkus'
+    id 'nu.studer.jooq' version '7.1.1'
+}
+
+repositories {
+    mavenCentral()
+    mavenLocal()
+}
+
+ext {
+    postgresqlDriverVersion = '42.3.5'
+    quarkusJooqVersion = '0.3.0'
+    h2Version = '2.1.212'
+    jooqVersion = '3.16.6'
+}
+
+
+dependencies {
+    implementation enforcedPlatform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}")
+    implementation 'io.quarkus:quarkus-grpc'
+    implementation 'io.quarkus:quarkus-arc'
+
+    // region database
+    implementation 'io.quarkus:quarkus-jdbc-postgresql'
+    implementation "io.quarkiverse.jooq:quarkus-jooq:${quarkusJooqVersion}"
+    implementation "org.postgresql:postgresql:${postgresqlDriverVersion}"
+    implementation "io.quarkus:quarkus-flyway"
+
+    jooqGenerator "org.jooq:jooq-meta-extensions:${jooqVersion}"
+    jooqGenerator "com.h2database:h2:${h2Version}"
+    // endregion
+
+
+    testImplementation 'io.quarkus:quarkus-junit5'
+}
+
+group 'org.acme'
+version '1.0.0-SNAPSHOT'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+compileJava {
+    options.encoding = 'UTF-8'
+    options.compilerArgs << '-parameters'
+}
+
+compileTestJava {
+    options.encoding = 'UTF-8'
+}
+
+// region jooq
+jooq {
+    version = "${jooqVersion}"
+    configurations {
+        main {
+            generationTool {
+                logging = org.jooq.meta.jaxb.Logging.INFO
+                jdbc {
+                    driver = 'org.h2.Driver'
+                    url = 'jdbc:h2:mem:demoapp'
+                }
+                generator {
+                    name = 'org.jooq.codegen.DefaultGenerator'
+                    database {
+                        name = 'org.jooq.meta.extensions.ddl.DDLDatabase'
+                        includes = '.*'
+                        excludes = 'flyway_schema_history'
+                        properties {
+                            property {
+                                key = 'scripts'
+                                value = "${project.projectDir}/src/main/resources/db/migration/*.sql"
+                            }
+                        }
+                    }
+                    generate {
+                        deprecated = false
+                        records = false
+                        pojos = true
+                        generatedAnnotation = true
+                        nonnullAnnotationType = true
+                        constructorPropertiesAnnotation = true
+                        constructorPropertiesAnnotationOnPojos = true
+                        fluentSetters = true
+                    }
+                    target {
+                        packageName = 'org.acme.repository.jooq'
+                    }
+                    strategy {
+                        matchers {
+                            tables {
+                                table {
+                                    tableClass {
+                                        transform = 'PASCAL'
+                                        expression = '$0_table'
+                                    }
+                                    pojoClass {
+                                        transform = 'PASCAL'
+                                        expression = '$0_entity'
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    strategy.name = 'org.jooq.codegen.DefaultGeneratorStrategy'
+                }
+            }
+        }
+    }
+}
+
